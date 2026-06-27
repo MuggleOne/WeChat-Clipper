@@ -1,0 +1,11 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local editor/runtime state
+.obsidian/workspace.json
+
+# Generated crawler outputs and caches
+wechat_article_outputs/
+**/search_html/
+wechat_etf_research_notes_*/manifest.json
