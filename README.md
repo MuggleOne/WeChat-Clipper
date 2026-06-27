@@ -1,6 +1,8 @@
-# 知识系统
+# WeChat-Clipper
 
-这个仓库用于管理本地知识整理脚本、微信公开文章抓取辅助工具，以及已经整理过的学习笔记。
+A lightweight toolkit for collecting, archiving, and analyzing publicly available WeChat Official Account articles.
+
+这个仓库用于管理微信公开文章抓取辅助工具、知识整理脚本，以及已经整理过的学习笔记。
 
 ## 当前工具
 
