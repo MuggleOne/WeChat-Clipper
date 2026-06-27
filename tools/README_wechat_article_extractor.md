@@ -11,25 +11,25 @@ tools/wechat_article_extractor.py
 抓取单篇文章，默认输出 Markdown：
 
 ```bash
-python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/4QC4d_salyqTRjh43NoXhA"
+python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID"
 ```
 
 同时输出 Markdown、TXT、JSON：
 
 ```bash
-python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/4QC4d_salyqTRjh43NoXhA" -f all -o wechat_article_outputs
+python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" -f all -o wechat_article_outputs
 ```
 
 只输出纯文本：
 
 ```bash
-python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/4QC4d_salyqTRjh43NoXhA" -f txt
+python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" -f txt
 ```
 
 保存原始 HTML，便于排查解析问题：
 
 ```bash
-python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/4QC4d_salyqTRjh43NoXhA" --save-html
+python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" --save-html
 ```
 
 从已经保存的 HTML 离线解析：
