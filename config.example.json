@@ -1,0 +1,33 @@
+{
+  "notion": {
+    "database_id": "your_notion_database_id",
+    "data_source_id": "your_notion_data_source_id",
+    "default_type": "公众号文章",
+    "new_status": "未开始",
+    "notion_version": "2022-06-28",
+    "properties": {
+      "title": "主题",
+      "url": "网址",
+      "author": "作者",
+      "type": "类型",
+      "status": "状态",
+      "added_date": "添加时间",
+      "publish_date": "发布日期"
+    }
+  },
+  "obsidian": {
+    "vault_path": "~/path/to/your/obsidian/vault",
+    "article_folder": "素材资料/公众号文章",
+    "image_folder": "素材资料/图片"
+  },
+  "wechat_mp": {
+    "cookie": "your_mp_weixin_cookie",
+    "token": "your_mp_weixin_token",
+    "page_size": 5,
+    "max_pages": 20,
+    "request_delay_seconds": 1.0
+  },
+  "tracking": {
+    "state_path": "wechat_clipper_state.json"
+  }
+}

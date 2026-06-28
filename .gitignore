@@ -1,11 +1,15 @@
 .DS_Store
 __pycache__/
 *.py[cod]
+.venv/
+.env
 
 # Local editor/runtime state
 .obsidian/
 .obsidian/workspace.json
+wechat_clipper_config.json
 
 # Generated crawler outputs and caches
 wechat_article_outputs/
 **/search_html/
+wechat_clipper_state.json

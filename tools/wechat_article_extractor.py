@@ -261,6 +261,34 @@ def extract_js_var(body: str, name: str) -> str | None:
     return decode_js_string(match.group(2))
 
 
+def extract_js_string_assignment(body: str, name: str) -> str | None:
+    patterns = [
+        rf"\bvar\s+{re.escape(name)}\s*=\s*(['\"])(.*?)\1",
+        rf"\b(?:window\.)?{re.escape(name)}\s*=\s*(?:window\.\w+\s*=\s*)?(['\"])(.*?)\1",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, body, flags=re.S)
+        if match:
+            return decode_js_string(match.group(2))
+    return None
+
+
+def extract_object_string_value(body: str, name: str) -> str | None:
+    pattern = rf"\b{re.escape(name)}\s*:\s*(['\"])(.*?)\1"
+    match = re.search(pattern, body, flags=re.S)
+    if not match:
+        return None
+    return decode_js_string(match.group(2))
+
+
+def extract_fallback_assignment_string(body: str, name: str) -> str | None:
+    pattern = rf"\b{re.escape(name)}\s*=\s*xml\s*\?.*?:\s*(['\"])(.*?)\1"
+    match = re.search(pattern, body, flags=re.S)
+    if not match:
+        return None
+    return decode_js_string(match.group(2))
+
+
 def extract_html_decode_var(body: str, name: str) -> str | None:
     pattern = rf"\bvar\s+{re.escape(name)}\s*=\s*htmlDecode\((['\"])(.*?)\1\)"
     match = re.search(pattern, body, flags=re.S)
@@ -299,7 +327,14 @@ def extract_sogou_inner_url(body: str) -> str | None:
 
 
 def parse_publish_time(body: str) -> tuple[int | None, str | None]:
-    ct = first_match(body, [r'\bvar\s+ct\s*=\s*"(\d+)"', r"\bct\s*:\s*'(\d+)'"])
+    ct = first_match(
+        body,
+        [
+            r'\bvar\s+ct\s*=\s*"(\d+)"',
+            r"\b(?:window\.)?ct\s*=\s*['\"](\d+)['\"]",
+            r"\bct\s*:\s*'(\d+)'",
+        ],
+    )
     if ct:
         timestamp = int(ct)
         published = dt.datetime.fromtimestamp(timestamp, dt.timezone(dt.timedelta(hours=8)))
@@ -322,7 +357,8 @@ def parse_article(body: str, final_url: str) -> dict[str, Any]:
     parser.feed(body)
     publish_ts, publish_time = parse_publish_time(body)
 
-    title = extract_js_var(body, "msg_title") or clean_html_text(
+    item_show_type = extract_js_string_assignment(body, "item_show_type")
+    title = extract_js_string_assignment(body, "msg_title") or clean_html_text(
         first_match(
             body,
             [
@@ -331,8 +367,13 @@ def parse_article(body: str, final_url: str) -> dict[str, Any]:
             ],
         )
     )
-    account = extract_html_decode_var(body, "nickname") or extract_js_var(body, "nickname") or clean_html_text(
+    account = (
+        extract_html_decode_var(body, "nickname")
+        or extract_js_string_assignment(body, "nickname")
+        or extract_object_string_value(body, "nick_name")
+        or clean_html_text(
         first_match(body, [r'<strong[^>]+id=["\']js_name["\'][^>]*>(.*?)</strong>'])
+    )
     )
     author = clean_html_text(
         first_match(
@@ -342,9 +383,16 @@ def parse_article(body: str, final_url: str) -> dict[str, Any]:
                 r'<em[^>]+id=["\']js_author_name["\'][^>]*>(.*?)</em>',
             ],
         )
-    )
+    ) or extract_fallback_assignment_string(body, "author")
 
     text = parser.text()
+    content_markdown = parser.markdown()
+    text_share_content = title if is_text_share_article(item_show_type, text, title) else None
+    if text_share_content:
+        text = clean_article_whitespace(text_share_content)
+        content_markdown = text
+        title = publish_date_title(publish_time) or "未命名微信文章"
+
     article = {
         "url": final_url,
         "title": title,
@@ -352,23 +400,43 @@ def parse_article(body: str, final_url: str) -> dict[str, Any]:
         "author": author,
         "publish_ts": publish_ts,
         "publish_time": publish_time,
-        "biz": extract_js_var(body, "biz"),
-        "user_name": extract_js_var(body, "user_name"),
-        "appmsgid": extract_js_var(body, "appmsgid") or extract_js_var(body, "mid"),
-        "idx": extract_js_var(body, "idx"),
-        "sn": extract_js_var(body, "sn"),
-        "digest": extract_js_var(body, "msg_desc"),
-        "source_url": extract_js_var(body, "msg_source_url"),
-        "cover": normalize_asset_url(extract_js_var(body, "msg_cdn_url") or ""),
+        "biz": extract_js_string_assignment(body, "biz"),
+        "user_name": extract_js_string_assignment(body, "user_name")
+        or extract_object_string_value(body, "user_name")
+        or extract_fallback_assignment_string(body, "user_name"),
+        "appmsgid": extract_js_string_assignment(body, "appmsgid") or extract_js_string_assignment(body, "mid"),
+        "idx": extract_js_string_assignment(body, "idx"),
+        "sn": extract_js_string_assignment(body, "sn"),
+        "digest": extract_js_string_assignment(body, "msg_desc"),
+        "source_url": extract_js_string_assignment(body, "msg_source_url"),
+        "cover": normalize_asset_url(extract_js_string_assignment(body, "msg_cdn_url") or ""),
+        "item_show_type": item_show_type,
         "text_len": len(text),
         "images": parser.images,
         "links": dedupe_dicts(parser.links, "href"),
         "content_text": text,
-        "content_markdown": parser.markdown(),
+        "content_markdown": content_markdown,
     }
     article["content_sha256"] = hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None
     article["warnings"] = detect_warnings(body, article)
     return article
+
+
+def is_text_share_article(item_show_type: str | None, text: str, title: str | None) -> bool:
+    if item_show_type == "10" and title:
+        return True
+    if text:
+        return False
+    if not title:
+        return False
+    return len(title) > 120 and ("\n" in title or "。" in title)
+
+
+def publish_date_title(publish_time: str | None) -> str | None:
+    if not publish_time:
+        return None
+    match = re.match(r"\d{4}-\d{2}-\d{2}", publish_time)
+    return match.group(0) if match else None
 
 
 def detect_warnings(body: str, article: dict[str, Any]) -> list[str]:
@@ -377,7 +445,7 @@ def detect_warnings(body: str, article: dict[str, Any]) -> list[str]:
         warnings.append("未解析到正文；页面可能需要登录、被限流、已删除，或 DOM 结构发生变化。")
     if "环境异常" in body or "访问频率" in body:
         warnings.append("页面中出现访问异常/频率提示，建议稍后重试或提供 Cookie。")
-    if "js_content" not in body:
+    if "js_content" not in body and article.get("item_show_type") != "10":
         warnings.append("HTML 中未出现 js_content 正文容器。")
     return warnings
 
