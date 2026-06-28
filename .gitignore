@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 
 # Local editor/runtime state
+.obsidian/
 .obsidian/workspace.json
 
 # Generated crawler outputs and caches
