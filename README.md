@@ -2,7 +2,7 @@
 
 A lightweight toolkit for collecting, archiving, and analyzing publicly available WeChat Official Account articles.
 
-这个仓库用于管理公开微信文章的采集、归档、正文提取、结构化整理和后续知识沉淀工具。它不是某一个公众号或某一个主题的专用项目；ETF 研究笔记只是当前仓库里的一个示例场景和历史产物。
+这个仓库用于管理公开微信文章的采集、归档、正文提取、结构化整理和后续知识沉淀工具。
 
 ## 项目目标
 
