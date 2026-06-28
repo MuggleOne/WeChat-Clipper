@@ -61,6 +61,7 @@ BLOCK_TAGS = {
     "ul",
 }
 SKIP_TAGS = {"script", "style", "svg", "noscript", "canvas"}
+MARKDOWN_IMAGE_WIDTH_PERCENT = 30
 
 
 @dataclass
@@ -78,6 +79,7 @@ class WeChatArticleParser(HTMLParser):
         self.content_depth = 0
         self.skip_depth = 0
         self.parts: list[str] = []
+        self.markdown_parts: list[str] = []
         self.images: list[dict[str, str]] = []
         self.links: list[dict[str, str]] = []
         self._link_stack: list[str] = []
@@ -111,13 +113,18 @@ class WeChatArticleParser(HTMLParser):
         if tag == "img":
             src = attrs_d.get("data-src") or attrs_d.get("src") or ""
             if src:
+                marker = f"{{{{WECHAT_IMAGE_{len(self.images) + 1:04d}}}}}"
                 self.images.append(
                     {
                         "src": normalize_asset_url(src),
                         "alt": attrs_d.get("alt", "").strip(),
                         "data_type": attrs_d.get("data-type", "").strip(),
+                        "marker": marker,
                     }
                 )
+                self._markdown_newline()
+                self.markdown_parts.append(marker)
+                self._markdown_newline()
         elif tag == "a":
             href = attrs_d.get("href", "").strip()
             self._link_stack.append(href)
@@ -149,29 +156,52 @@ class WeChatArticleParser(HTMLParser):
 
     def text(self) -> str:
         value = "".join(self.parts)
-        value = value.replace("\u200b", "")
-        value = re.sub(r"[ \t]+\n", "\n", value)
-        value = re.sub(r"\n[ \t]+", "\n", value)
-        value = re.sub(r"\n{3,}", "\n\n", value)
-        return value.strip()
+        return clean_article_whitespace(value)
+
+    def markdown(self) -> str:
+        value = "".join(self.markdown_parts)
+        return clean_article_whitespace(value)
 
     def _newline(self) -> None:
         if not self.parts:
+            self._markdown_newline()
             return
-        if self.parts[-1].endswith("\n"):
-            return
-        self.parts.append("\n")
+        if not self.parts[-1].endswith("\n"):
+            self.parts.append("\n")
+        self._markdown_newline()
 
     def _space(self) -> None:
         if self.parts and not self.parts[-1].endswith((" ", "\n")):
             self.parts.append(" ")
+        if self.markdown_parts and not self.markdown_parts[-1].endswith((" ", "\n")):
+            self.markdown_parts.append(" ")
 
     def _text(self, text: str) -> None:
         if self.parts and self.parts[-1] and not self.parts[-1].endswith(("\n", " ")):
             prev = self.parts[-1][-1]
             if prev.isascii() and prev.isalnum() and text[0].isascii() and text[0].isalnum():
                 self.parts.append(" ")
+        if self.markdown_parts and self.markdown_parts[-1] and not self.markdown_parts[-1].endswith(("\n", " ")):
+            prev = self.markdown_parts[-1][-1]
+            if prev.isascii() and prev.isalnum() and text[0].isascii() and text[0].isalnum():
+                self.markdown_parts.append(" ")
         self.parts.append(text)
+        self.markdown_parts.append(text)
+
+    def _markdown_newline(self) -> None:
+        if not self.markdown_parts:
+            return
+        if self.markdown_parts[-1].endswith("\n"):
+            return
+        self.markdown_parts.append("\n")
+
+
+def clean_article_whitespace(value: str) -> str:
+    value = value.replace("\u200b", "")
+    value = re.sub(r"[ \t]+\n", "\n", value)
+    value = re.sub(r"\n[ \t]+", "\n", value)
+    value = re.sub(r"\n{3,}", "\n\n", value)
+    return value.strip()
 
 
 def normalize_asset_url(value: str) -> str:
@@ -334,6 +364,7 @@ def parse_article(body: str, final_url: str) -> dict[str, Any]:
         "images": parser.images,
         "links": dedupe_dicts(parser.links, "href"),
         "content_text": text,
+        "content_markdown": parser.markdown(),
     }
     article["content_sha256"] = hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None
     article["warnings"] = detect_warnings(body, article)
@@ -451,6 +482,28 @@ def download_article_images(
     return written
 
 
+def render_inline_image(image: dict[str, Any]) -> str:
+    src = image.get("local_path") or image.get("src") or ""
+    if not src:
+        return ""
+    alt = html.escape(image.get("alt") or "image", quote=True)
+    src = html.escape(src, quote=True)
+    return f'<img src="{src}" alt="{alt}" width="{MARKDOWN_IMAGE_WIDTH_PERCENT}%">'
+
+
+def render_markdown_body(article: dict[str, Any]) -> str:
+    body = article.get("content_markdown") or article.get("content_text") or ""
+    for image in article.get("images") or []:
+        marker = image.get("marker")
+        if not marker:
+            continue
+        rendered = render_inline_image(image)
+        if image.get("download_error"):
+            rendered += f"\n\n> 图片下载失败：{image['download_error']}"
+        body = body.replace(marker, rendered)
+    return body
+
+
 def article_to_markdown(article: dict[str, Any]) -> str:
     lines = [
         f"# {article.get('title') or '未命名微信文章'}",
@@ -472,16 +525,16 @@ def article_to_markdown(article: dict[str, Any]) -> str:
         lines.extend(["", "## 警告", ""])
         lines.extend(f"- {item}" for item in article["warnings"])
 
-    lines.extend(["", "## 正文", "", article.get("content_text") or ""])
+    lines.extend(["", "## 正文", "", render_markdown_body(article)])
 
     images = article.get("images") or []
     if images:
-        lines.extend(["", "## 图片", ""])
+        lines.extend(["", "## 图片来源", ""])
         for image in images:
             alt = image.get("alt") or ""
             local_path = image.get("local_path")
             if local_path:
-                lines.append(f"- ![{alt or 'image'}]({local_path})")
+                lines.append(f"- 本地：{local_path}")
                 lines.append(f"  - 来源：{image.get('src', '')}")
             else:
                 lines.append(f"- {image.get('src', '')}" + (f" ({alt})" if alt else ""))
