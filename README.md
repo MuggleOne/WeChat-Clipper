@@ -14,7 +14,6 @@ A lightweight toolkit for collecting, archiving, and analyzing publicly availabl
 ## 当前工具
 
 - `tools/wechat_article_extractor.py`：抓取公开微信文章正文，支持输出 Markdown、TXT、JSON。
-- `wechat_etf_research_notes_2026-06-21_2026-06-27/fetch_public_wechat_articles.py`：一个面向 ETF 研究笔记的批量检索和摘要示例，可作为后续主题脚本的参考。
 
 ## 微信文章正文抓取
 
@@ -33,7 +32,6 @@ python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID
 ## 目录说明
 
 - `tools/`：通用抓取和解析工具。
-- `wechat_etf_research_notes_2026-06-21_2026-06-27/`：一次 ETF 研究笔记整理示例，包含脚本、索引和学习笔记。
 - `wechat_article_outputs/`：本地生成的正文输出目录，默认被 `.gitignore` 忽略。
 
 ## Git 使用

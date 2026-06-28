@@ -9,4 +9,3 @@ __pycache__/
 # Generated crawler outputs and caches
 wechat_article_outputs/
 **/search_html/
-wechat_etf_research_notes_*/manifest.json
