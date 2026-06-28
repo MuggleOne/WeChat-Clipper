@@ -22,6 +22,12 @@ A lightweight toolkit for collecting, archiving, and analyzing publicly availabl
 python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" -f all -o wechat_article_outputs
 ```
 
+连正文图片一起保存到本地：
+
+```bash
+python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" -f all -o wechat_article_outputs --download-images
+```
+
 生成的正文输出默认不纳入 Git 版本管理；需要保存重要内容时，建议整理成自己的笔记后再提交。
 
 ## 目录说明

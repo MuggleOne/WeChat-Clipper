@@ -20,6 +20,18 @@ python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID
 python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" -f all -o wechat_article_outputs
 ```
 
+同时下载正文图片：
+
+```bash
+python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" -f all -o wechat_article_outputs --download-images
+```
+
+图片默认保存到 `wechat_article_outputs/<文章文件名>_images/`，Markdown 会引用本地图片路径，并保留原始图片 URL 作为来源。你也可以指定图片目录名：
+
+```bash
+python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" --download-images --image-dir images
+```
+
 只输出纯文本：
 
 ```bash
@@ -42,7 +54,7 @@ python3 tools/wechat_article_extractor.py --html-file article.html -f all
 
 - `md`：带元数据、正文、图片链接、文章内链接的 Markdown。
 - `txt`：标题、元数据和纯正文。
-- `json`：结构化字段，包含 `title`、`account`、`author`、`publish_time`、`images`、`links`、`content_text` 等。
+- `json`：结构化字段，包含 `title`、`account`、`author`、`publish_time`、`images`、`links`、`content_text` 等；使用 `--download-images` 时，图片对象会包含 `local_path` 和 `downloaded_bytes`。
 
 ## 访问限制
 

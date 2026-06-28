@@ -378,6 +378,79 @@ def output_stem(article: dict[str, Any]) -> str:
     return slugify(f"{date_prefix}{title}_{digest}", f"wechat_article_{digest}")
 
 
+def image_extension(url: str, content_type: str | None, data_type: str | None) -> str:
+    for candidate in (data_type, urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("wx_fmt", [""])[0]):
+        candidate = (candidate or "").lower().strip(".")
+        if candidate in {"jpg", "jpeg", "png", "gif", "webp", "bmp"}:
+            return "jpg" if candidate == "jpeg" else candidate
+
+    content_type = (content_type or "").split(";", 1)[0].lower()
+    return {
+        "image/jpeg": "jpg",
+        "image/jpg": "jpg",
+        "image/png": "png",
+        "image/gif": "gif",
+        "image/webp": "webp",
+        "image/bmp": "bmp",
+    }.get(content_type, "img")
+
+
+def download_article_images(
+    article: dict[str, Any],
+    out_dir: Path,
+    stem: str,
+    *,
+    timeout: int,
+    cookie: str | None,
+    image_dir: str | None,
+) -> list[Path]:
+    images = article.get("images") or []
+    if not images:
+        return []
+
+    asset_dir = out_dir / (image_dir or f"{stem}_images")
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    seen_urls: set[str] = set()
+
+    for index, image in enumerate(images, start=1):
+        src = image.get("src", "")
+        if not src or src in seen_urls:
+            continue
+        seen_urls.add(src)
+
+        headers = {
+            "User-Agent": UA_WECHAT,
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        }
+        if article.get("url"):
+            headers["Referer"] = str(article["url"])
+        if cookie:
+            headers["Cookie"] = cookie
+
+        try:
+            request = urllib.request.Request(urllib.parse.quote(src, safe=":/?&=%._-~#+,;"), headers=headers)
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw = response.read()
+                content_type = response.headers.get("Content-Type")
+            if not raw:
+                image["download_error"] = "empty response"
+                continue
+
+            ext = image_extension(src, content_type, image.get("data_type"))
+            digest = hashlib.sha1(src.encode("utf-8")).hexdigest()[:10]
+            filename = f"image_{index:02d}_{digest}.{ext}"
+            path = asset_dir / filename
+            path.write_bytes(raw)
+            image["local_path"] = str(path.relative_to(out_dir))
+            image["downloaded_bytes"] = len(raw)
+            written.append(path)
+        except Exception as exc:  # noqa: BLE001
+            image["download_error"] = repr(exc)
+
+    return written
+
+
 def article_to_markdown(article: dict[str, Any]) -> str:
     lines = [
         f"# {article.get('title') or '未命名微信文章'}",
@@ -406,7 +479,14 @@ def article_to_markdown(article: dict[str, Any]) -> str:
         lines.extend(["", "## 图片", ""])
         for image in images:
             alt = image.get("alt") or ""
-            lines.append(f"- {image.get('src', '')}" + (f" ({alt})" if alt else ""))
+            local_path = image.get("local_path")
+            if local_path:
+                lines.append(f"- ![{alt or 'image'}]({local_path})")
+                lines.append(f"  - 来源：{image.get('src', '')}")
+            else:
+                lines.append(f"- {image.get('src', '')}" + (f" ({alt})" if alt else ""))
+                if image.get("download_error"):
+                    lines.append(f"  - 下载失败：{image['download_error']}")
 
     links = article.get("links") or []
     if links:
@@ -471,6 +551,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-f", "--format", choices=["md", "txt", "json", "all"], default="md", help="输出格式。")
     parser.add_argument("--stdout", action="store_true", help="同时把正文文本打印到终端。")
     parser.add_argument("--save-html", action="store_true", help="同时保存原始 HTML，便于排查解析问题。")
+    parser.add_argument("--download-images", action="store_true", help="下载正文图片到本地，并在 Markdown/JSON 中记录本地路径。")
+    parser.add_argument("--image-dir", help="图片输出目录名；默认使用 <文章文件名>_images，目录位于 --out-dir 下。")
     parser.add_argument("--html-file", help="从本地 HTML 文件解析，不联网。")
     parser.add_argument("--encoding", default="utf-8", help="读取本地 HTML 时使用的编码。")
     parser.add_argument("--cookie", help="可选 Cookie 字符串；遇到访问限制时可从浏览器复制。")
@@ -483,6 +565,17 @@ def main(argv: list[str] | None = None) -> int:
     page = load_article_html(args)
     article = parse_article(page.body, page.final_url)
     out_dir = Path(args.out_dir)
+    stem = output_stem(article)
+    image_files: list[Path] = []
+    if args.download_images:
+        image_files = download_article_images(
+            article,
+            out_dir,
+            stem,
+            timeout=args.timeout,
+            cookie=args.cookie,
+            image_dir=args.image_dir,
+        )
     written = write_outputs(article, out_dir, args.format)
 
     if args.save_html:
@@ -496,8 +589,10 @@ def main(argv: list[str] | None = None) -> int:
         "account": article.get("account"),
         "publish_time": article.get("publish_time"),
         "text_len": article.get("text_len"),
+        "images_found": len(article.get("images") or []),
+        "images_downloaded": len(image_files),
         "warnings": article.get("warnings"),
-        "written": [str(path) for path in written],
+        "written": [str(path) for path in [*written, *image_files]],
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
