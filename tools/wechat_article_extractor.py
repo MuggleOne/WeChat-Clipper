@@ -488,7 +488,7 @@ def render_inline_image(image: dict[str, Any]) -> str:
         return ""
     alt = html.escape(image.get("alt") or "image", quote=True)
     src = html.escape(src, quote=True)
-    return f'<img src="{src}" alt="{alt}" width="{MARKDOWN_IMAGE_WIDTH_PERCENT}%">'
+    return f'<p align="center"><img src="{src}" alt="{alt}" width="{MARKDOWN_IMAGE_WIDTH_PERCENT}%"></p>'
 
 
 def render_markdown_body(article: dict[str, Any]) -> str:

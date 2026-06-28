@@ -26,7 +26,7 @@ python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID
 python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" -f all -o wechat_article_outputs --download-images
 ```
 
-图片默认保存到 `wechat_article_outputs/<文章文件名>_images/`。Markdown 会把图片插回正文中的原始位置，并用 30% 宽度显示；文末只保留图片来源清单。你也可以指定图片目录名：
+图片默认保存到 `wechat_article_outputs/<文章文件名>_images/`。Markdown 会把图片插回正文中的原始位置，并居中用 30% 宽度显示；文末只保留图片来源清单。你也可以指定图片目录名：
 
 ```bash
 python3 tools/wechat_article_extractor.py "https://mp.weixin.qq.com/s/ARTICLE_ID" --download-images --image-dir images
